@@ -3,41 +3,22 @@ package com.mantisbayne.storeprototype.domain
 import com.mantisbayne.storeprototype.data.Product
 import com.mantisbayne.storeprototype.data.api.ProductApi
 import com.mantisbayne.storeprototype.data.toDomain
-import com.mantisbayne.storeprototype.domain.ProductRepositoryImpl.ProductResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
 import javax.inject.Inject
 
 interface ProductRepository {
-    suspend fun getAllProducts() : ProductResult<List<Product>>
+    fun getAllProducts(): Flow<ProductResult<List<Product>>>
 
-    suspend fun getProduct(id: Int) : ProductResult<Product>
+    fun getProduct(id: Int): Flow<ProductResult<Product>>
 }
 
-class ProductRepositoryImpl @Inject constructor(private val api: ProductApi): ProductRepository {
+class ProductRepositoryImpl @Inject constructor(private val api: ProductApi) : ProductRepository {
 
-    override suspend fun getAllProducts(): ProductResult<List<Product>> {
-
-        return try {
-            val products = api.getAllProducts().map { product ->
-                product.toDomain(
-                    product.id,
-                    product.title,
-                    product.price,
-                    product.image,
-                    product.description,
-                    product.category
-                )
-            }
-            ProductResult.Success(products)
-        } catch (e: Exception) {
-            ProductResult.Error(e.message)
-        }
-    }
-
-    override suspend fun getProduct(id: Int): ProductResult<Product> {
-
-        return try {
-            val product = api.getProduct(id)
-            val result = product.toDomain(
+    override fun getAllProducts() = flow<ProductResult<List<Product>>> {
+        val products = api.getAllProducts().map { product ->
+            product.toDomain(
                 product.id,
                 product.title,
                 product.price,
@@ -45,14 +26,29 @@ class ProductRepositoryImpl @Inject constructor(private val api: ProductApi): Pr
                 product.description,
                 product.category
             )
-            ProductResult.Success(result)
-        } catch (e: Exception) {
-            ProductResult.Error(e.message)
         }
+        emit(ProductResult.Success(products))
+    }.catch { e ->
+        emit(ProductResult.Error(e.message))
     }
 
-    sealed class ProductResult<T> {
-        data class Error<T>(val errorMessage: String?) : ProductResult<T>()
-        data class Success<T>(val value: T) : ProductResult<T>()
+    override fun getProduct(id: Int) = flow<ProductResult<Product>> {
+        val product = api.getProduct(id)
+        val result = product.toDomain(
+            product.id,
+            product.title,
+            product.price,
+            product.image,
+            product.description,
+            product.category
+        )
+        emit(ProductResult.Success(result))
+    }.catch { e ->
+        emit(ProductResult.Error(e.message))
     }
+}
+
+sealed class ProductResult<out T> {
+    data class Error(val errorMessage: String?) : ProductResult<Nothing>()
+    data class Success<out T>(val value: T) : ProductResult<T>()
 }
