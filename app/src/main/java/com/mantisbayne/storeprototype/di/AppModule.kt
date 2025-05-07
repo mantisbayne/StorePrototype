@@ -81,4 +81,11 @@ object AppModule {
         @Provides
         fun provideCartDao(database: Database): CartDao = database.cartDao()
     }
+
+
+    @Provides
+    @Singleton
+    fun provideCartRepository(api: ProductApi): ProductRepository {
+        return ProductRepositoryImpl(api)
+    }
 }
