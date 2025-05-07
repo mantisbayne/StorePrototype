@@ -19,6 +19,7 @@ hilt-navigation-compose = "1.2.0"
 paging = "3.3.6"
 mockito = "5.2.1"
 turbine = "1.0.0"
+room = "2.7.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -49,6 +50,11 @@ paging = { module = "androidx.paging:paging-runtime", version.ref = "paging" }
 paging-compose = { module = "androidx.paging:paging-compose", version.ref = "paging" }
 mockito = { module = "org.mockito.kotlin:mockito-kotlin", version.ref = "mockito" }
 turbine = { module = "app.cash.turbine:turbine", version.ref = "turbine" }
+room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
+room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
+room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
+room-testing = { module = "androidx.room:room-testing", version.ref = "room" }
+room-paging = { module = "androidx.room:room-paging", version.ref = "room" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
