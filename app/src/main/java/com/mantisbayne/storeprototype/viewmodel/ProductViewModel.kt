@@ -8,44 +8,106 @@ import com.mantisbayne.storeprototype.domain.ProductRepository
 import com.mantisbayne.storeprototype.domain.ProductResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.text.NumberFormat
 import javax.inject.Inject
 
 @HiltViewModel
 class ProductViewModel @Inject constructor(
     private val cartRepository: CartRepository,
-    private val repository: ProductRepository
+    private val productRepository: ProductRepository
 ) : ViewModel() {
-
-    private val _viewState = MutableStateFlow(ProductViewState())
-    val viewState: StateFlow<ProductViewState> = _viewState.asStateFlow()
 
     private val _intent = MutableSharedFlow<ProductIntent>(replay = 1, extraBufferCapacity = 1)
     val intent: SharedFlow<ProductIntent> = _intent.asSharedFlow()
 
-    val cart: StateFlow<Map<Int, Int>> = cartRepository.observeCart()
-        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyMap())
+    private val _uiEvent = MutableSharedFlow<UiEvent>(replay = 1, extraBufferCapacity = 1)
+    val uiEvent: SharedFlow<UiEvent> = _uiEvent.asSharedFlow()
 
-    val totalPrice: StateFlow<Double> = cart
-        .combine(viewState.map { it.products }) { cartMap, products ->
-            calculateTotal(products, cartMap)
+    private val productResult = productRepository.getAllProducts()
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            ProductResult.Success(emptyList())
+        )
+
+    private val products: StateFlow<List<Product>> = productResult
+        .map { result ->
+            (result as? ProductResult.Success)?.value ?: emptyList()
         }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+    private val observeCart = cartRepository.observeCart()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private val cart: StateFlow<List<CartItem>> = observeCart
+        .combine(products) { cartMap, productList ->
+            productList.filter { cartMap.containsKey(it.id) }
+                .map { product ->
+                    val count = cartMap[product.id] ?: 0
+                    val subtotal = product.price * count
+                    CartItem(
+                        productId = product.id,
+                        productName = product.title,
+                        unitPrice = "$${product.price}",
+                        count = count,
+                        subtotal = "$%.2f".format(subtotal)
+                    )
+                }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val totalPrice: StateFlow<Double> = observeCart
+        .combine(products) { cartMap, productList ->
+            calculateTotal(productList, cartMap)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val viewState: StateFlow<ProductViewState> = combine(
+        productResult,
+        cart,
+        totalPrice
+    ) { productResult, cartItems, totalPrice ->
+
+        when (productResult) {
+            is ProductResult.Error -> {
+                ProductViewState(
+                    isLoading = false,
+                    errorMessage = errorMessage(productResult.errorMessage)
+                )
+            }
+
+            is ProductResult.Success -> {
+                ProductViewState(
+                    isLoading = false,
+                    products = productResult.value,
+                    cartItems = cartItems,
+                    totalPrice = NumberFormat.getCurrencyInstance().format(totalPrice)
+                )
+
+            }
+        }
+    }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            ProductViewState()
+        )
 
     init {
         processIntents()
-        sendIntent(ProductIntent.Refresh)
     }
 
     fun sendIntent(intent: ProductIntent) {
@@ -54,45 +116,25 @@ class ProductViewModel @Inject constructor(
 
     fun processIntents() {
         viewModelScope.launch {
-            intent.collectLatest {intent ->
+            intent.collectLatest { intent ->
                 when (intent) {
-                    is ProductIntent.Refresh -> loadProducts()
-                    is ProductIntent.AddProduct -> addProductToCart(intent.id)
+                    is ProductIntent.UpdateProduct -> addProductToCart(intent.id, intent.shouldAdd)
                 }
             }
         }
     }
 
-    private fun loadProducts() {
+    private fun addProductToCart(id: Int, shouldAdd: Boolean) {
         viewModelScope.launch {
-            repository.getAllProducts()
-                .collect { result ->
+            val currentCount = observeCart.value[id] ?: 0
+            val newCount = if (shouldAdd) currentCount + 1 else currentCount - 1
 
-                    when (result) {
-                        is ProductResult.Success -> {
-                            _viewState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    products = result.value
-                                )
-                            }
-                        }
-                        is ProductResult.Error -> {
-                            _viewState.update {
-                                it.copy(
-                                    isLoading = false,
-                                    errorMessage = it.errorMessage
-                                )
-                            }
-                        }
-                    }
-                }
-        }
-    }
+            if (newCount < 1) {
+                val productTitle = products.value.find { it.id == id }?.title ?: "Item"
+                _uiEvent.emit(UiEvent.SnackbarEvent("$productTitle removed from cart"))
+            }
 
-    private fun addProductToCart(id: Int) {
-        viewModelScope.launch {
-            cartRepository.
+            cartRepository.updateCartItemCount(id, newCount)
         }
     }
 
@@ -102,10 +144,26 @@ class ProductViewModel @Inject constructor(
             item.price * count
         }
     }
+
+    private fun errorMessage(errorMessage: String?) = errorMessage ?: "Unable to load Products"
 }
 
 data class ProductViewState(
-    val isLoading: Boolean = false,
     val products: List<Product> = emptyList(),
+    val cartItems: List<CartItem> = emptyList(),
+    val totalPrice: String = "",
+    val isLoading: Boolean = false,
     val errorMessage: String = ""
 )
+
+data class CartItem(
+    val productId: Int,
+    val productName: String,
+    val unitPrice: String,
+    val count: Int,
+    val subtotal: String
+)
+
+sealed class UiEvent {
+    data class SnackbarEvent(val message: String) : UiEvent()
+}

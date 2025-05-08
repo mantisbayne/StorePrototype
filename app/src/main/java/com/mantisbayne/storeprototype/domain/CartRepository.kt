@@ -23,19 +23,18 @@ class CartRepositoryImpl @Inject constructor(private val cartDao: CartDao) : Car
         return cartDao.getCartItem(productId)
     }
 
-    override suspend fun updateCartItemCount(productId: Int, shouldAdd: Boolean) {
+    override suspend fun updateCartItemCount(productId: Int, newCount: Int) {
         val cartItem = cartDao.getCartItem(productId)
 
         when {
             cartItem != null -> {
-                val newCount = if (shouldAdd) cartItem.count + 1 else cartItem.count - 1
                 if (newCount < 1) {
                     cartDao.deleteCartItem(productId)
                 } else {
                     cartDao.updateCartItemCount(productId, newCount)
                 }
             }
-            shouldAdd -> cartDao.insert(CartEntity(productId, 1))
+            else -> cartDao.insert(CartEntity(productId, 1))
         }
     }
 
@@ -52,7 +51,7 @@ interface CartRepository {
 
     suspend fun getCartItem(productId: Int): CartEntity?
 
-    suspend fun updateCartItemCount(productId: Int, shouldAdd: Boolean)
+    suspend fun updateCartItemCount(productId: Int, newCount: Int)
 
     suspend fun deleteCartItem(productId: Int)
 }
