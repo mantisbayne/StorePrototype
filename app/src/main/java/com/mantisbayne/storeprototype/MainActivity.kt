@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddCircle
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -118,7 +119,7 @@ fun ProductScreen(
 
                             }
                         ) {
-                            Icon(Icons.Default.Clear, contentDescription = "remove item")
+                            Icon(Icons.Default.Check, contentDescription = "remove item")
                         }
                         Text(
                             text = "14"

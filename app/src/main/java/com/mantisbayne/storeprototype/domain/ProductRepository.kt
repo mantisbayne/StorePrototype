@@ -1,6 +1,7 @@
 package com.mantisbayne.storeprototype.domain
 
 import com.mantisbayne.storeprototype.data.Product
+import com.mantisbayne.storeprototype.data.api.FakeProductApi
 import com.mantisbayne.storeprototype.data.api.ProductApi
 import com.mantisbayne.storeprototype.data.toDomain
 import kotlinx.coroutines.flow.Flow
@@ -14,7 +15,7 @@ interface ProductRepository {
     fun getProduct(id: Int): Flow<ProductResult<Product>>
 }
 
-class ProductRepositoryImpl @Inject constructor(private val api: ProductApi) : ProductRepository {
+class ProductRepositoryImpl @Inject constructor(private val api: FakeProductApi) : ProductRepository {
 
     override fun getAllProducts() = flow<ProductResult<List<Product>>> {
         val products = api.getAllProducts().map { product ->

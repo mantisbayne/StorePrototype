@@ -44,7 +44,6 @@ class ProductViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, 0.0)
 
     init {
-        println("debugg init")
         processIntents()
         sendIntent(ProductIntent.Refresh)
     }
@@ -55,9 +54,7 @@ class ProductViewModel @Inject constructor(
 
     fun processIntents() {
         viewModelScope.launch {
-            println("debugg process")
             intent.collectLatest {intent ->
-                println("debugg $intent")
                 when (intent) {
                     is ProductIntent.Refresh -> loadProducts()
                     is ProductIntent.AddProduct -> addProductToCart(intent.id)
@@ -70,7 +67,7 @@ class ProductViewModel @Inject constructor(
         viewModelScope.launch {
             repository.getAllProducts()
                 .collect { result ->
-                    println("debugg result $result")
+
                     when (result) {
                         is ProductResult.Success -> {
                             _viewState.update {
@@ -95,7 +92,7 @@ class ProductViewModel @Inject constructor(
 
     private fun addProductToCart(id: Int) {
         viewModelScope.launch {
-            cartRepository.updateCart(id)
+            cartRepository.
         }
     }
 

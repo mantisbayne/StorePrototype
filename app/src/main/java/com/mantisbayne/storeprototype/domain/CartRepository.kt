@@ -2,59 +2,57 @@ package com.mantisbayne.storeprototype.domain
 
 import com.mantisbayne.storeprototype.data.local.CartDao
 import com.mantisbayne.storeprototype.data.local.CartEntity
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.map
 import javax.inject.Inject
 
 class CartRepositoryImpl @Inject constructor(private val cartDao: CartDao) : CartRepository {
 
-    private val _cartFlow = MutableStateFlow<Map<Int, Int>>(emptyMap())
-    val cartFlow = _cartFlow.asStateFlow()
-
-    override fun observeCart(): Flow<Map<Int, Int>> = cartFlow
-
-    override suspend fun getCart(id: Int): CartEntity {
-        withContext(Dispatchers.Default) {
-            cartDao.getCart(id)
-        }
-    }
-
-    override suspend fun updateCart(id: Int): CartEntity {
-        withContext(Dispatchers.Default) {
-            val cart = cartFlow.value
-            cart[id]?.let { cartDao.updateCartCount(id, it) }
-                ?: throw IllegalStateException("Unable to update cart")
-        }
-    }
-
-    fun add(id: Int) {
-        _cartFlow.update {
-            it.toMutableMap().apply { merge(id, 1, Int::plus) }
-        }
-    }
-
-    fun remove(id: Int) {
-        _cartFlow.update { idToCount ->
-            idToCount.toMutableMap().apply {
-                val cart = cartFlow.value.toMutableMap()
-                cart[id]?.let {
-                    val count = it - 1
-                    cart[id] = count
-                    if (count < 1) cart.remove(id)
-                } ?: throw IllegalStateException("Unable to remove item")
+    override fun observeCart(): Flow<Map<Int, Int>> =
+        cartDao.observeCart().map {
+            it.associate { cartItem ->
+                cartItem.id to cartItem.count
             }
         }
+
+    override suspend fun getCart(): List<CartEntity> {
+        return cartDao.getCart()
     }
+
+    override suspend fun getCartItem(productId: Int): CartEntity? {
+        return cartDao.getCartItem(productId)
+    }
+
+    override suspend fun updateCartItemCount(productId: Int, shouldAdd: Boolean) {
+        val cartItem = cartDao.getCartItem(productId)
+
+        when {
+            cartItem != null -> {
+                val newCount = if (shouldAdd) cartItem.count + 1 else cartItem.count - 1
+                if (newCount < 1) {
+                    cartDao.deleteCartItem(productId)
+                } else {
+                    cartDao.updateCartItemCount(productId, newCount)
+                }
+            }
+            shouldAdd -> cartDao.insert(CartEntity(productId, 1))
+        }
+    }
+
+    override suspend fun deleteCartItem(productId: Int) {
+        cartDao.deleteCartItem(productId)
+    }
+
 }
 
 interface CartRepository {
     fun observeCart(): Flow<Map<Int, Int>>
 
-    suspend fun getCart(id: Int): CartEntity
+    suspend fun getCart(): List<CartEntity>
 
-    suspend fun updateCart(id: Int): CartEntity
+    suspend fun getCartItem(productId: Int): CartEntity?
+
+    suspend fun updateCartItemCount(productId: Int, shouldAdd: Boolean)
+
+    suspend fun deleteCartItem(productId: Int)
 }
