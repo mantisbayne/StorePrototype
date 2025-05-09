@@ -60,7 +60,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideProductRepository(api: ProductApi): ProductRepository {
+    fun provideProductRepository(api: FakeProductApi): ProductRepository {
         return ProductRepositoryImpl(api)
     }
 
@@ -85,7 +85,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideCartRepository(api: ProductApi): ProductRepository {
+    fun provideCartRepository(api: FakeProductApi): ProductRepository {
         return ProductRepositoryImpl(api)
     }
 }

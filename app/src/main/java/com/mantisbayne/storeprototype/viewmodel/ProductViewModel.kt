@@ -29,7 +29,7 @@ class ProductViewModel @Inject constructor(
     private val _intent = MutableSharedFlow<ProductIntent>(replay = 1, extraBufferCapacity = 1)
     val intent: SharedFlow<ProductIntent> = _intent.asSharedFlow()
 
-    private val _uiEvent = MutableSharedFlow<UiEvent>(replay = 1, extraBufferCapacity = 1)
+    private val _uiEvent = MutableSharedFlow<UiEvent>(extraBufferCapacity = 1)
     val uiEvent: SharedFlow<UiEvent> = _uiEvent.asSharedFlow()
 
     private val productResult = productRepository.getAllProducts()
@@ -69,6 +69,17 @@ class ProductViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val storeItems = observeCart
+        .combine(products) { cartMap, productList ->
+            productList.map { product ->
+                val count = cartMap[product.id] ?: 0
+                StoreItem(
+                    product.title,
+                    "$count"
+                )
+            }
+        }
+
     private val totalPrice: StateFlow<Double> = observeCart
         .combine(products) { cartMap, productList ->
             calculateTotal(productList, cartMap)
@@ -78,8 +89,9 @@ class ProductViewModel @Inject constructor(
     val viewState: StateFlow<ProductViewState> = combine(
         productResult,
         cart,
-        totalPrice
-    ) { productResult, cartItems, totalPrice ->
+        totalPrice,
+        storeItems
+    ) { productResult, cartItems, totalPrice, storeItems ->
 
         when (productResult) {
             is ProductResult.Error -> {
@@ -92,7 +104,7 @@ class ProductViewModel @Inject constructor(
             is ProductResult.Success -> {
                 ProductViewState(
                     isLoading = false,
-                    products = productResult.value,
+                    items = storeItems,
                     cartItems = cartItems,
                     totalPrice = NumberFormat.getCurrencyInstance().format(totalPrice)
                 )
@@ -149,7 +161,7 @@ class ProductViewModel @Inject constructor(
 }
 
 data class ProductViewState(
-    val products: List<Product> = emptyList(),
+    val items: List<StoreItem> = emptyList(),
     val cartItems: List<CartItem> = emptyList(),
     val totalPrice: String = "",
     val isLoading: Boolean = false,
@@ -162,6 +174,11 @@ data class CartItem(
     val unitPrice: String,
     val count: Int,
     val subtotal: String
+)
+
+data class StoreItem(
+    val title: String = "",
+    val count: String = "0"
 )
 
 sealed class UiEvent {
