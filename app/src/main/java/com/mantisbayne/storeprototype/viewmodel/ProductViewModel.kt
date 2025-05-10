@@ -57,17 +57,19 @@ class ProductViewModel @Inject constructor(
             productList.filter { cartMap.containsKey(it.id) }
                 .map { product ->
                     val count = cartMap[product.id] ?: 0
-                    val subtotal = product.price * count
+                    val subtotal = total(product, count)
                     CartItem(
                         productId = product.id,
                         productName = product.title,
                         unitPrice = "$${product.price}",
                         count = count,
-                        subtotal = "$%.2f".format(subtotal)
+                        subtotal = subtotalText(subtotal)
                     )
                 }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private fun subtotalText(subtotal: Double) = "$%.2f".format(subtotal)
 
     val storeItems = observeCart
         .combine(products) { cartMap, productList ->
@@ -78,7 +80,8 @@ class ProductViewModel @Inject constructor(
                     description = product.description,
                     title = product.title,
                     count = "$count",
-                    price = "$${product.price}"
+                    price = "$${product.price}",
+                    subtotal = subtotalText(total(product, count))
                 )
             }
         }
@@ -156,9 +159,12 @@ class ProductViewModel @Inject constructor(
     private fun calculateTotal(items: List<Product>, cart: Map<Int, Int>): Double {
         return items.sumOf { item ->
             val count = cart[item.id] ?: 0
-            item.price * count
+            total(item, count)
         }
     }
+
+    private fun total(item: Product, count: Int) =
+        item.price * count
 
     private fun errorMessage(errorMessage: String?) = errorMessage ?: "Unable to load Products"
 }
@@ -184,7 +190,8 @@ data class StoreItem(
     val description: String = "",
     val title: String = "",
     val count: String = "0",
-    val price: String = ""
+    val price: String = "",
+    val subtotal: String = ""
 )
 
 sealed class UiEvent {

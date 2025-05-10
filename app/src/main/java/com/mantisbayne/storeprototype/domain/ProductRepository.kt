@@ -20,12 +20,12 @@ class ProductRepositoryImpl @Inject constructor(private val api: FakeProductApi)
     override fun getAllProducts() = flow<ProductResult<List<Product>>> {
         val products = api.getAllProducts().map { product ->
             product.toDomain(
-                product.id,
-                product.title,
-                product.price,
-                product.image,
-                product.description,
-                product.category
+                id = product.id,
+                title = product.title,
+                price = product.price,
+                description = product.description,
+                category = product.category,
+                image = product.image
             )
         }
         emit(ProductResult.Success(products))
@@ -36,12 +36,12 @@ class ProductRepositoryImpl @Inject constructor(private val api: FakeProductApi)
     override fun getProduct(id: Int) = flow<ProductResult<Product>> {
         val product = api.getProduct(id)
         val result = product.toDomain(
-            product.id,
-            product.title,
-            product.price,
-            product.image,
-            product.description,
-            product.category
+            id = product.id,
+            title = product.title,
+            price = product.price,
+            description = product.description,
+            category = product.category,
+            image = product.image
         )
         emit(ProductResult.Success(result))
     }.catch { e ->

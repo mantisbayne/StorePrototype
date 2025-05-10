@@ -7,13 +7,17 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -26,7 +30,6 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,6 +39,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,12 +56,13 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.mantisbayne.storeprototype.ui.components.BodyText
 import com.mantisbayne.storeprototype.ui.components.MediumDivider
 import com.mantisbayne.storeprototype.ui.theme.StorePrototypeTheme
+import com.mantisbayne.storeprototype.viewmodel.CartItem
 import com.mantisbayne.storeprototype.viewmodel.ProductIntent
 import com.mantisbayne.storeprototype.viewmodel.ProductViewModel
 import com.mantisbayne.storeprototype.viewmodel.ProductViewState
 import com.mantisbayne.storeprototype.viewmodel.StoreItem
+import com.mantisbayne.storeprototype.viewmodel.UiEvent
 import dagger.hilt.android.AndroidEntryPoint
-import kotlin.math.exp
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -66,7 +71,6 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             StorePrototypeTheme {
-                val scope = rememberCoroutineScope()
                 val snackbarHostState = remember { SnackbarHostState() }
 
                 Scaffold(
@@ -75,6 +79,16 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     val viewModel = hiltViewModel<ProductViewModel>()
                     val viewState by viewModel.viewState.collectAsStateWithLifecycle()
+
+                    LaunchedEffect(Unit) {
+                        viewModel.uiEvent.collect { event ->
+                            when (event) {
+                                is UiEvent.SnackbarEvent -> {
+                                    snackbarHostState.showSnackbar(event.message)
+                                }
+                            }
+                        }
+                    }
 
                     when {
                         viewState.isLoading -> CircularProgressIndicator()
@@ -111,13 +125,67 @@ fun ProductScreen(
     onAdd: (Int) -> Unit,
     onSubtract: (Int) -> Unit
 ) {
+
     Surface(
         Modifier
             .padding(innerPadding)
             .fillMaxSize(),
         color = MaterialTheme.colorScheme.background
     ) {
-        ProductList(viewState, onAdd, onSubtract)
+        Column {
+            ProductList(viewState, onAdd, onSubtract)
+            Cart(viewState.cartItems, viewState.totalPrice)
+        }
+    }
+}
+
+@Composable
+fun Cart(
+    cartItems: List<CartItem>,
+    total: String
+) {
+    Column(
+        modifier = Modifier
+            .padding(16.dp)
+    ) {
+        BodyText("Cart")
+        MediumDivider()
+        LazyColumn {
+            items(cartItems) {item ->
+                CartItem(item)
+            }
+        }
+        MediumDivider()
+        Row(
+            horizontalArrangement = Arrangement.Absolute.Right
+        ) {
+            BodyText("Total:", Modifier.weight(1f))
+            BodyText(total)
+        }
+    }
+}
+
+@Composable
+private fun CartItem(item: CartItem) {
+    var visible by remember { mutableStateOf(item.count > 0) }
+
+    LaunchedEffect(item.count) {
+        visible = item.count > 0
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        exit = fadeOut() + shrinkVertically(),
+        enter = fadeIn() + expandVertically()
+    ) {
+        Row {
+            BodyText(
+                item.productName,
+                Modifier.weight(1f)
+            )
+            BodyText(item.count.toString())
+            BodyText(item.subtotal)
+        }
     }
 }
 
@@ -139,7 +207,7 @@ private fun ProductList(
         items(viewState.items) { item ->
             ProductItemContent(
                 item,
-                viewState.totalPrice,
+                false,
                 onAdd,
                 onSubtract
             )
@@ -150,11 +218,17 @@ private fun ProductList(
 @Composable
 private fun ProductItemContent(
     item: StoreItem,
-    total: String,
+    added: Boolean,
     onAdd: (Int) -> Unit,
     onSubtract: (Int) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val scale = remember { Animatable(1f) }
+
+    LaunchedEffect(added) {
+        scale.animateTo(1.2f)
+        scale.animateTo(1f)
+    }
 
     Card(
         elevation = CardDefaults.cardElevation(10.dp),
@@ -175,11 +249,14 @@ private fun ProductItemContent(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = item.title,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.titleLarge
-            )
+            Column {
+
+                Text(
+                    text = item.title,
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleLarge
+                )
+            }
             ProductQuantityCounter(
                 { onAdd(item.id) },
                 { onSubtract(item.id) },
@@ -207,7 +284,7 @@ private fun ProductItemContent(
                 MediumDivider()
                 Row {
                     BodyText("Total:", Modifier.weight(1f))
-                    BodyText(total)
+                    BodyText(item.subtotal)
                 }
             }
         }
@@ -222,10 +299,14 @@ fun ProductQuantityCounter(
 ) {
     IconButton(
         onClick = {
-            onAdd()
+            onSubtract()
         }
     ) {
-        Icon(Icons.Default.Add, contentDescription = "add item")
+        Icon(
+            modifier = Modifier.size(24.dp),
+            painter = painterResource(R.drawable.minus_icon),
+            contentDescription = "remove item"
+        )
     }
     AnimatedContent(
         targetState = count,
@@ -238,14 +319,10 @@ fun ProductQuantityCounter(
     }
     IconButton(
         onClick = {
-            onSubtract()
+            onAdd()
         }
     ) {
-        Icon(
-            modifier = Modifier.size(24.dp),
-            painter = painterResource(R.drawable.minus_icon),
-            contentDescription = "remove item"
-        )
+        Icon(Icons.Default.Add, contentDescription = "add item")
     }
 }
 
