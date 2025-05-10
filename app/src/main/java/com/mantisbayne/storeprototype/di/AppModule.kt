@@ -9,6 +9,8 @@ import com.mantisbayne.storeprototype.data.api.ProductApi
 import com.mantisbayne.storeprototype.data.api.UserApi
 import com.mantisbayne.storeprototype.data.local.CartDao
 import com.mantisbayne.storeprototype.data.local.Database
+import com.mantisbayne.storeprototype.domain.CartRepository
+import com.mantisbayne.storeprototype.domain.CartRepositoryImpl
 import com.mantisbayne.storeprototype.domain.ProductRepository
 import com.mantisbayne.storeprototype.domain.ProductRepositoryImpl
 import dagger.Module
@@ -44,7 +46,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideProductApi(): ProductApi {
+    fun provideProductApi(): FakeProductApi {
         return FakeProductApi()
     }
 
@@ -85,7 +87,7 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideCartRepository(api: FakeProductApi): ProductRepository {
-        return ProductRepositoryImpl(api)
+    fun provideCartRepository(api: CartDao): CartRepository {
+        return CartRepositoryImpl(api)
     }
 }

@@ -74,8 +74,11 @@ class ProductViewModel @Inject constructor(
             productList.map { product ->
                 val count = cartMap[product.id] ?: 0
                 StoreItem(
-                    product.title,
-                    "$count"
+                    id = product.id,
+                    description = product.description,
+                    title = product.title,
+                    count = "$count",
+                    price = "$${product.price}"
                 )
             }
         }
@@ -177,8 +180,11 @@ data class CartItem(
 )
 
 data class StoreItem(
+    val id: Int = 0,
+    val description: String = "",
     val title: String = "",
-    val count: String = "0"
+    val count: String = "0",
+    val price: String = ""
 )
 
 sealed class UiEvent {
